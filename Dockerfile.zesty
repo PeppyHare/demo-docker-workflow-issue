@@ -1,0 +1,78 @@
+# This Dockerfile is used to build an image containing basic stuff to be used as a Jenkins slave build node.
+FROM ubuntu:17.04
+
+# 1. Make sure the package repository is up to date
+# 2. Install a basic SSH server and Java
+# 3. clean up after ourselves
+RUN apt-get update \
+ && apt-get -y upgrade \
+ && apt-get install -y \
+    openssh-server \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    lxc \
+    iptables \
+    software-properties-common \
+    sudo \
+ && mkdir -p /var/run/sshd \
+ && apt-get clean \
+ && apt-get autoclean \
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/*
+
+RUN apt-add-repository ppa:openjdk-r/ppa \
+ && apt-get update \
+ && apt-get install -y openjdk-8-jdk
+
+# Standard SSH port
+EXPOSE 22
+
+# Docker
+ENV DOCKER_VERSION 18.03.0~ce-0~ubuntu
+VOLUME /var/lib/docker/
+
+# Install Docker from Docker Inc. repositories.
+RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \
+ && apt-get -qq update \
+ && apt-get install -y -q \
+    docker-ce=$DOCKER_VERSION \
+ && apt-get clean && apt-get autoclean \
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/* ~/.cache
+
+# Create jenkins user after docker group exists
+# Allow jenkins user to run docker and sudo
+RUN useradd --shell /bin/bash --create-home --groups docker jenkins \
+ && echo "jenkins:jenkinspass" | chpasswd \
+ && echo "jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
+ && echo "GRADLE_HOME=/opt/packages/gradle/gradle-3.0" >> /home/jenkins/.profile \
+ && echo "GOROOT=/usr/local/go" >> /home/jenkins/.profile \
+ && echo "GOPATH=$HOME/go" >> /home/jenkins/.profile \
+ && echo "PATH=$PATH:$GOROOT/bin:$GOPATH/bin" >> /home/jenkins/.profile
+
+COPY /files/authorized_keys /home/jenkins/.ssh/authorized_keys
+COPY /files/config /home/jenkins/.ssh/config
+
+
+RUN chown -R jenkins: /home/jenkins \
+&& chmod 600 /home/jenkins/.ssh/authorized_keys \
+&& chmod 644 /home/jenkins/.ssh/config \
+&& chmod 700 /home/jenkins/.ssh
+
+# place the docker daemon launcher in the container
+COPY wrapdocker /usr/local/bin/wrapdocker
+
+# Use tini as reaper in Docker container to adopt zombie processes
+# See https://github.com/krallin/tini for more details
+# Current version: 0.18.0
+ENV TINI_VERSION v0.18.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static /bin/tini
+RUN chmod +x /bin/tini
+ENTRYPOINT ["/bin/tini", "--"]
+
+# Add customized slave setup code
+COPY setup_slave.sh /var/lib/jenkins_slave/
+WORKDIR /var/lib/jenkins_slave
+
+#Execute wrapper script
+CMD ["./setup_slave.sh"]

@@ -1,0 +1,57 @@
+Sending build context to Docker daemon  81.41kB
+Step 1/18 : FROM ubuntu:bionic
+ ---> 94e814e2efa8
+Step 2/18 : RUN apt-get -qq update  && apt-get -y upgrade  && apt-get install -y     openssh-server     openjdk-8-jdk     apt-transport-https     ca-certificates     curl     lxc     iptables     software-properties-common     sudo  && apt-add-repository -y ppa:ansible/ansible  && sed -i 's|session    required     pam_loginuid.so|session    optional     pam_loginuid.so|g' /etc/pam.d/sshd  && mkdir -p /var/run/sshd  && apt-get clean  && apt-get autoclean  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/*
+ ---> Using cache
+ ---> 8c76c08672f1
+Step 3/18 : EXPOSE 22
+ ---> Using cache
+ ---> 6a00d804e41b
+Step 4/18 : ENV DOCKER_VERSION 18.06.3~ce~3-0~ubuntu
+ ---> Using cache
+ ---> b359887c5f92
+Step 5/18 : VOLUME /var/lib/docker/
+ ---> Using cache
+ ---> 19f943d4e271
+Step 6/18 : RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -  && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"  && apt-get -qq update  && apt-get install -y -q     docker-ce=$DOCKER_VERSION  && apt-get clean && apt-get autoclean  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/* ~/.cache
+ ---> Using cache
+ ---> 72335cc0a934
+Step 7/18 : RUN useradd --shell /bin/bash --create-home --groups docker jenkins  && echo "jenkins:jenkinspass" | chpasswd  && echo "jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers  && echo "GRADLE_HOME=/opt/packages/gradle/gradle-3.0" >> /home/jenkins/.profile  && echo "GOROOT=/usr/local/go" >> /home/jenkins/.profile  && echo "GOPATH=$HOME/go" >> /home/jenkins/.profile  && echo "PATH=$PATH:$GOROOT/bin:$GOPATH/bin" >> /home/jenkins/.profile
+ ---> Using cache
+ ---> 859dfd132be8
+Step 8/18 : COPY /files/authorized_keys /home/jenkins/.ssh/authorized_keys
+ ---> Using cache
+ ---> 334f3c03af5d
+Step 9/18 : COPY /files/config /home/jenkins/.ssh/config
+ ---> Using cache
+ ---> b4a873aa6e69
+Step 10/18 : RUN chown -R jenkins: /home/jenkins && chmod 600 /home/jenkins/.ssh/authorized_keys && chmod 644 /home/jenkins/.ssh/config && chmod 700 /home/jenkins/.ssh
+ ---> Using cache
+ ---> 1264e6bfd0b5
+Step 11/18 : COPY wrapdocker /usr/local/bin/wrapdocker
+ ---> Using cache
+ ---> 3bd0dc1be589
+Step 12/18 : ENV TINI_VERSION v0.18.0
+ ---> Using cache
+ ---> 971abffb2b86
+Step 13/18 : ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static /bin/tini
+
+ ---> Using cache
+ ---> f9fd9e824b9f
+Step 14/18 : RUN chmod +x /bin/tini
+ ---> Using cache
+ ---> 8e5259b25129
+Step 15/18 : ENTRYPOINT ["/bin/tini", "--"]
+ ---> Using cache
+ ---> c351582d212e
+Step 16/18 : COPY setup_slave.sh /var/lib/jenkins_slave/
+ ---> Using cache
+ ---> 7e808ccd7897
+Step 17/18 : WORKDIR /var/lib/jenkins_slave
+ ---> Using cache
+ ---> d3af7a1f5fd0
+Step 18/18 : CMD ["./setup_slave.sh"]
+ ---> Using cache
+ ---> 0201581e5e34
+Successfully built 0201581e5e34
+Successfully tagged demo-jenkins-slave:bionic
